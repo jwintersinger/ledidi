@@ -1,17 +1,15 @@
 # ledidi.py
 # Authors: Yang Lu <ylu465@uw.edu> and Jacob Schreiber <jmschreiber91@gmail.com>
 
-MIN_W = 0.001
-
 import numpy
-from scipy.special import logsumexp
-
 import tensorflow as tf
 import tensorflow.keras.backend as k
+from scipy.special import logsumexp
 
 MIN_W = 0.001
 
-class TensorFlowRegressor():
+
+class TensorFlowRegressor:
     """A wrapper for a TensorFlow regression model.
 
     This wrapper holds a TensorFlow model that has regression outputs. The
@@ -27,7 +25,7 @@ class TensorFlowRegressor():
             The regression model that is being wrapped.
 
         verbose : bool, optional
-            Whether to print out logs related to use of this object. 
+            Whether to print out logs related to use of this object.
             Default is False.
         """
 
@@ -38,16 +36,16 @@ class TensorFlowRegressor():
 
         self._input_shape = k.int_shape(self._input)
         self._output_shape = k.int_shape(self._output)
-        
+
         if self.verbose == True:
-            print("TensorFlowRegressor model input_shape={}".format(
-                self._input_shape))
-            print("TensorFlowRegressor model output_shape={}".format(
-                self._output_shape))
+            print("TensorFlowRegressor model input_shape={}".format(self._input_shape))
+            print(
+                "TensorFlowRegressor model output_shape={}".format(self._output_shape)
+            )
 
     def loss_gradient(self, x, y, mask=None):
         """Compute the gradient of the loss function || f(x)-y ||^2 w.r.t. `x`.
-        
+
         Parameters
         ----------
         x : numpy.ndarray
@@ -67,7 +65,7 @@ class TensorFlowRegressor():
         """
 
         if mask is None:
-            mask = numpy.ones(y.shape, dtype='float32')
+            mask = numpy.ones(y.shape, dtype="float32")
 
         mask = tf.convert_to_tensor(mask / mask.sum())
 
@@ -81,10 +79,9 @@ class TensorFlowRegressor():
         assert grads.shape == x.shape
         return grads
 
-
     def loss(self, x, y, mask=None):
         """Compute the loss function || f(x)-y ||^2
-        
+
         Parameters
         ----------
         x : numpy.ndarray
@@ -100,18 +97,19 @@ class TensorFlowRegressor():
         Returns
         -------
         loss : float64
-            The loss calculated between the provided output and the model 
+            The loss calculated between the provided output and the model
             predictions.
         """
 
         if mask is None:
-            mask = numpy.ones(y.shape, dtype='float64')
+            mask = numpy.ones(y.shape, dtype="float64")
 
-        pred_y = self._model.predict(x.astype('float64'))
+        pred_y = self._model.predict(x.astype("float64"))
         assert pred_y.shape == y.shape
 
         loss = numpy.sum(mask * numpy.square(pred_y - y)) / mask.sum()
         return loss
+
 
 class Ledidi(object):
     """The Ledidi sequence designer.
@@ -180,11 +178,22 @@ class Ledidi(object):
 
     verbose: bool, optional
         Whether to print logs associated with this object. Default is True.
-    """ 
+    """
 
-    def __init__(self, model, tau=3, l=10, max_iter=100, lr=1e-3, mask=None,
-        early_stopping=-1, min_x=0.01, max_x=0.99, random_state=None,
-        verbose=True):
+    def __init__(
+        self,
+        model,
+        tau=3,
+        l=10,
+        max_iter=100,
+        lr=1e-3,
+        mask=None,
+        early_stopping=-1,
+        min_x=0.01,
+        max_x=0.99,
+        random_state=None,
+        verbose=True,
+    ):
         self.model = model
         self.tau = tau
         self.l = l
@@ -214,15 +223,15 @@ class Ledidi(object):
     def fit_transform(self, seq, epi_bar):
         seq = numpy.array(seq, ndmin=3)
 
-        missing_indices = numpy.where(numpy.sum(seq[0], axis=1)<=0)[0]
+        missing_indices = numpy.where(numpy.sum(seq[0], axis=1) <= 0)[0]
         tau = self.tau
 
         if self.verbose:
-            print('batch_missing_loc_indices={}'.format(missing_indices.shape[0]))
+            print("batch_missing_loc_indices={}".format(missing_indices.shape[0]))
 
         g = -numpy.log(-numpy.log(self.random_state.uniform(MIN_W, 1, size=seq.shape)))
         curr_w = self._from_x_to_w(seq, tau, g, self.min_x, self.max_x)
-        curr_x = self._from_w_to_x(curr_w, tau, g) 
+        curr_x = self._from_w_to_x(curr_w, tau, g)
         curr_x[0, missing_indices, :] = 0
 
         ref_x = seq.copy()
@@ -237,34 +246,51 @@ class Ledidi(object):
 
         for i in range(self.max_iter):
             curr_x_discrete = numpy.zeros_like(curr_x, dtype=int)
-            curr_x_discrete[0, numpy.arange(seq.shape[1]), numpy.argmax(curr_x[0], axis=1)] = 1
+            curr_x_discrete[
+                0, numpy.arange(seq.shape[1]), numpy.argmax(curr_x[0], axis=1)
+            ] = 1
             curr_x_discrete[0, missing_indices, :] = 0
 
             seq_loss = numpy.sum(numpy.fabs(curr_x - ref_x))
             seq_loss_discrete = numpy.sum(numpy.abs(curr_x_discrete - seq)) / 2
 
             epi_loss = self.model.loss(curr_x, epi_bar, mask=self.mask)
-            epi_loss_discrete = self.model.loss(curr_x_discrete, epi_bar, mask=self.mask)
+            epi_loss_discrete = self.model.loss(
+                curr_x_discrete, epi_bar, mask=self.mask
+            )
 
             total_loss = seq_loss + self.l * epi_loss
             total_loss_discrete = seq_loss_discrete + self.l * epi_loss_discrete
 
             if self.verbose:
-                print('iter={}\tseq_loss={:4.4}\tseq_loss_discrete={:4.4}\tepi_loss={:4.4}\tepi_loss_discrete={:4.4}\ttotal_loss={:4.4}\ttotal_loss_discrete:{:4.4}'.format(
-                    i, seq_loss, seq_loss_discrete, epi_loss, epi_loss_discrete, total_loss, total_loss_discrete))
+                print(
+                    "iter={}\tseq_loss={:4.4}\tseq_loss_discrete={:4.4}\tepi_loss={:4.4}\tepi_loss_discrete={:4.4}\ttotal_loss={:4.4}\ttotal_loss_discrete:{:4.4}".format(
+                        i,
+                        seq_loss,
+                        seq_loss_discrete,
+                        epi_loss,
+                        epi_loss_discrete,
+                        total_loss,
+                        total_loss_discrete,
+                    )
+                )
 
-            loss_to_x_grad = self.model.loss_gradient(curr_x_surrogate, epi_bar, mask=self.mask)
+            loss_to_x_grad = self.model.loss_gradient(
+                curr_x_surrogate, epi_bar, mask=self.mask
+            )
 
-            x_to_w_grad = (curr_x_surrogate - curr_x_surrogate*curr_x_surrogate) / tau
-            x_to_ref_sgn = numpy.asarray((curr_x_surrogate - ref_x)>=0, dtype=float)
-            x_to_ref_sgn[x_to_ref_sgn<=0]=-1
+            x_to_w_grad = (curr_x_surrogate - curr_x_surrogate * curr_x_surrogate) / tau
+            x_to_ref_sgn = numpy.asarray((curr_x_surrogate - ref_x) >= 0, dtype=float)
+            x_to_ref_sgn[x_to_ref_sgn <= 0] = -1
             loss_to_w_grad = (x_to_ref_sgn + self.l * loss_to_x_grad) * x_to_w_grad
 
             new_w = curr_w_surrogate - self.lr * loss_to_w_grad
-            curr_w_surrogate = new_w + (1.0 * i / (i+2)) * (new_w - curr_w)
+            curr_w_surrogate = new_w + (1.0 * i / (i + 2)) * (new_w - curr_w)
             curr_w = new_w
 
-            g = -numpy.log(-numpy.log(self.random_state.uniform(MIN_W, 1, size=seq.shape)))
+            g = -numpy.log(
+                -numpy.log(self.random_state.uniform(MIN_W, 1, size=seq.shape))
+            )
             curr_x = self._from_w_to_x(curr_w, tau, g)
             curr_x_surrogate = self._from_w_to_x(curr_w_surrogate, tau, g)
 
@@ -277,7 +303,7 @@ class Ledidi(object):
 
             if total_loss < best_total_loss:
                 best_total_loss = total_loss
-                early_stopping_iters = 0 
+                early_stopping_iters = 0
             else:
                 early_stopping_iters += 1
 
@@ -285,4 +311,3 @@ class Ledidi(object):
                 break
 
         return best_sequence
-
